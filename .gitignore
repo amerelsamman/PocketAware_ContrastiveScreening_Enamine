@@ -11,10 +11,10 @@ data/ligands_features_cache/
 # data/ligand_features_cache/    — included minus large diversity PKLs
 data/ligand_features_cache/diversity_*.pkl
 
-# Models — exclude old/dev checkpoints, keep v2
+# Models — exclude old/dev checkpoints, keep v1
 models/old/
 models/v0/
-models/v1/
+models/v2/
 
 # Reinvent4 submodule / outputs
 reinvent4/
