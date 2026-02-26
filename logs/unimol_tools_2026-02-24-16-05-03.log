@@ -1,0 +1,2 @@
+2026-02-24 16:05:14 | unimol_tools\models\unimol.py | 167 | INFO | Uni-Mol Tools | Loading pretrained weights from C:\Users\aelsamma\AppData\Local\anaconda3\envs\unimol\lib\site-packages\unimol_tools\weights\poc_pre_220816.pt
+2026-02-24 16:05:15 | unimol_tools\tasks\trainer.py | 103 | INFO | Uni-Mol Tools | Using CPU.

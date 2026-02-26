@@ -27,8 +27,9 @@ configs/
 
 # Other excluded dirs
 old/
-unimol_tutorial/
-logs/
+clean_smiles.py
+check_checkpoint.py
+eval_pdb.py
 
 # Python cache
 __pycache__/

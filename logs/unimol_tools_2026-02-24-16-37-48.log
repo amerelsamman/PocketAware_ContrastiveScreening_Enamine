@@ -1,0 +1,5 @@
+2026-02-24 16:38:01 | unimol_tools\weights\weighthub.py | 54 | INFO | Uni-Mol Tools | Weights will be downloaded to default directory: C:\Users\aelsamma\AppData\Local\anaconda3\envs\unimol\lib\site-packages\unimol_tools\weights
+2026-02-24 16:38:01 | unimol_tools\weights\weighthub.py | 71 | INFO | Uni-Mol Tools | Downloading mol_pre_no_h_220816.pt
+2026-02-24 16:38:07 | unimol_tools\weights\weighthub.py | 54 | INFO | Uni-Mol Tools | Weights will be downloaded to default directory: C:\Users\aelsamma\AppData\Local\anaconda3\envs\unimol\lib\site-packages\unimol_tools\weights
+2026-02-24 16:38:07 | unimol_tools\weights\weighthub.py | 71 | INFO | Uni-Mol Tools | Downloading mol.dict.txt
+2026-02-24 16:38:08 | unimol_tools\models\unimol.py | 167 | INFO | Uni-Mol Tools | Loading pretrained weights from C:\Users\aelsamma\AppData\Local\anaconda3\envs\unimol\lib\site-packages\unimol_tools\weights\mol_pre_no_h_220816.pt
