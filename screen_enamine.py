@@ -15,7 +15,7 @@ Pipeline
 Usage
 -----
     conda activate unimol
-    python screen_enamine.py --config config_screen_enamine.yaml
+    python screen_enamine.py --config config.yaml
 """
 
 import sys
@@ -176,7 +176,7 @@ def compute_embeddings_batch(smiles_list, mol_repr, batch_size=32, verbose=True)
 # Screening
 # ─────────────────────────────────────────────────────────────────────────────
 
-def screen_compounds(config_path='config_screen_enamine.yaml'):
+def screen_compounds(config_path='config.yaml'):
     """
     Main screening pipeline.
     """
@@ -666,7 +666,7 @@ def screen_compounds(config_path='config_screen_enamine.yaml'):
 if __name__ == '__main__':
     print("[screen_enamine] Parsing arguments...", flush=True)
     parser = argparse.ArgumentParser(description='Screen Enamine library for PGK selectivity')
-    parser.add_argument('--config', type=str, default='config_screen_enamine.yaml',
+    parser.add_argument('--config', type=str, default='config.yaml',
                        help='Path to config YAML file')
     args = parser.parse_args()
     print(f"[screen_enamine] Config: {args.config}", flush=True)
