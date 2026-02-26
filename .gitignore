@@ -21,6 +21,9 @@ reinvent4/
 reinvent4_configs/
 reinvent4_outputs/
 reinvent4_scoring/
+reinvent4_stuff/
+
+configs/
 
 # Other excluded dirs
 old/
