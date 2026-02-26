@@ -1,0 +1,76 @@
+# Configuration for stage1_train.py
+# Stage 1: Binding classification training — v1
+
+# Model Version
+# -------------
+version: "v2"  # Used for output directory naming
+
+# Input Paths
+# -----------
+input:
+  ligand_csv: "data/ligands/smiles_binding_pdb_decoy.csv"
+  ligand_features: "data/ligand_features_cache/ligand_features_unimol.pkl"
+  pocket_embeddings: "data/pocket_embeddings_cache/pocket_embeddings_unimol_cutoff8A.pkl"
+
+# Output Paths
+# ------------
+output:
+  checkpoint_dir: "models"
+  results_dir: "models/v2/results"
+  checkpoint_name: "stage1_best.pt"
+  history_name: "stage1_best_history.json"
+
+# Training Hyperparameters
+# -------------------------
+training:
+  stage: "binding"
+  val_split: 0.2
+  stratify: true
+  epochs: 100
+  batch_size: 64
+  learning_rate: 3.0e-4
+  weight_decay: 1.0e-4
+  seed: 42
+  device: "auto"
+  # PDB oversampling: multiplies PDB sample probability in the batch sampler.
+  # 1.0 = no oversampling (~0.75 PDB/batch on average).
+  # 5.0 = 5x more likely to appear (~4 PDB/batch on average).
+  # With 3-class triplet loss we need both PGK1_bind and PGK2_bind in each batch.
+  # For post_film: set 5.0 or higher.
+  # For pre_film:  set 1.0 (original behaviour — no oversampling needed).
+  pdb_oversample_factor: 5.0
+
+# Evaluation
+# ----------
+evaluation:
+  save_train_results: true
+  save_val_results: true
+  per_source_confusion: true
+  sources:
+    - "DECOY"
+    - "PDB"
+  plot_training_curves: true
+
+# Three-Stage Pipeline (disabled)
+# --------------------------------
+three_stage:
+  enabled: false
+
+# Metric Learning
+# ---------------
+# MetricProjector adds a triplet loss to push binding clusters apart.
+# branch controls where the projector taps into the network:
+#   'pre_film'  → branches from ligand_repr (256, before FiLM)
+#                 pocket-blind: separates PGK1-selective vs PGK2-selective molecules
+#                 by pure chemistry. Same ligand always maps to same point.
+#   'post_film' → branches from modulated (256, after FiLM)
+#                 pocket-aware: separates (PGK2 pocket+binder) from (PGK1 pocket+binder)
+#                 from nonbinders. Uses full 3-class triplet loss with DECOYs.
+#                 Requires pdb_oversample_factor > 1 to work well.
+# margin: L2-normalized vectors have distances in [0, 2]. Keep margin well below 2.
+metric_learning:
+  enabled: true
+  branch: "post_film"   # "pre_film" or "post_film"
+  weight: 0.5
+  proj_dim: 64
+  margin: 0.1

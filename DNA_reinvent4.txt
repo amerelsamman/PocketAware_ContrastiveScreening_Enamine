@@ -1,0 +1,199 @@
+PGK2-SELECTIVE LIGAND GENERATION — REINVENT4 INTEGRATION RECORD
+================================================================
+
+GOAL
+----
+Use the trained PGK1/PGK2 selectivity surrogate model as a scoring
+function inside REINVENT4 Reinforcement Learning to generate de novo
+molecules that are predicted to bind PGK2 but NOT PGK1.
+
+SURROGATE MODEL (WHAT WE ARE WRAPPING)
+---------------------------------------
+Checkpoint:     models/v1/stage1_best.pt
+Model class:    SelectivityModel  (model.py)
+Architecture:   Uni-Mol ligand embeddings (512) + pocket FiLM conditioning
+Score:          p_bind(ligand, PGK2_mean) − p_bind(ligand, PGK1_mean)
+Range:          [−1, +1]  →  normalised to [0, 1] for REINVENT4
+                0.0 = fully PGK1-selective
+                0.5 = non-selective
+                1.0 = fully PGK2-selective
+Pocket source:  data/pocket_embeddings_cache/pocket_embeddings_unimol_cutoff8A.pkl
+                PGK1_mean: mean over all PGK1 pocket embeddings
+                PGK2_mean: mean over all PGK2 pocket embeddings
+
+DIRECTORY LAYOUT (REINVENT4 ADDITION)
+--------------------------------------
+Projects/
+  DNA_reinvent4.txt                      ← this file
+  reinvent4_scoring/                     ← namespace plugin root (add to PYTHONPATH)
+    reinvent_plugins/
+      components/
+        comp_pgk2_selectivity.py         ← custom scoring component
+  reinvent4_configs/
+    pgk2_selective_rl.toml               ← 2-stage RL run
+    pgk2_scoring_test.toml               ← validate plugin on known compounds
+    pgk2_seeds.smi                       ← known PGK2-selective seeds for inception
+  reinvent4_outputs/                     ← created at runtime
+    pgk2_stage1.chkpt
+    pgk2_stage2.chkpt
+    tb_pgk2/                             ← TensorBoard logs
+    pgk2_stage1_summary*.csv             ← RL generation results
+    pgk2_stage2_summary*.csv
+  setup_reinvent4.ps1                    ← one-shot setup script
+  run_pgk2_generation.ps1               ← launch RL job
+
+ENVIRONMENT PLAN
+----------------
+REINVENT4 requires Python >= 3.10.
+Our Uni-Mol model requires unimol_tools (from the `unimol` conda env).
+
+Strategy: create a NEW conda env called `reinvent4` and install BOTH
+REINVENT4 and unimol_tools into it.
+
+  conda create --name reinvent4 python=3.10
+  conda activate reinvent4
+  cd reinvent4/
+  python install.py cpu          # or cu126 for CUDA GPU
+  pip install unimol-tools        # add our Uni-Mol dependency
+
+The `models/v1/stage1_best.pt` and `model.py` are referenced by absolute
+path from the plugin — no code needs to be copied.
+
+REINVENT4 REPO
+--------------
+Clone into:  C:\Users\aelsamma\Desktop\Projects\reinvent4\
+Command:     git clone --depth 1 https://github.com/MolecularAI/REINVENT4.git reinvent4
+
+Prior model: bundled with REINVENT4 at reinvent4/priors/reinvent.prior
+             (ships as part of the package, no separate download needed)
+
+SCORING PLUGIN
+--------------
+File: reinvent4_scoring/reinvent_plugins/components/comp_pgk2_selectivity.py
+Class: PGK2Selectivity
+Registered name: PGK2Selectivity  (exact string used in TOML)
+
+How it works:
+  1. On first call, loads UniMolRepr encoder (lazy — expensive ~2 min)
+  2. For each SMILES:
+       a. Generate 3D conformer with RDKit ETKDG
+       b. Compute 512-dim Uni-Mol embedding
+       c. Forward pass with PGK1_mean → p_bind_pgk1
+       d. Forward pass with PGK2_mean → p_bind_pgk2
+       e. selectivity = p_bind_pgk2 − p_bind_pgk1
+       f. normalised = (selectivity + 1) / 2   →  [0, 1]
+  3. Returns ComponentResults([scores])  — NaN for invalid SMILES
+
+TOML PARAMETER KEYS (PGK2Selectivity endpoint):
+  params.checkpoint_path          = path to models/v1/stage1_best.pt
+  params.pocket_embeddings_path   = path to pocket_embeddings_unimol_cutoff8A.pkl
+  params.projects_dir             = path to this Projects folder (for model.py import)
+
+RL CONFIGURATION (2-STAGE CURRICULUM)
+--------------------------------------
+Stage 1 — Broad Exploration (500 steps):
+  Scoring:
+    - PGK2Selectivity   weight=1.0   sigmoid transform [0.6, 0.9]
+    - QED               weight=0.6
+    - custom_alerts     weight=1.0   (PAINS + toxic groups)
+  Purpose: Get the generative model to produce drug-like, PGK2-biased structures.
+
+Stage 2 — Tightening (500 steps):
+  Agent starts from Stage 1 checkpoint.
+  Scoring:
+    - PGK2Selectivity   weight=1.0   sigmoid transform [0.7, 0.95]  (tighter)
+    - QED               weight=0.5
+    - TPSA              weight=0.4   left_step at 140 (permeability gate)
+    - custom_alerts     weight=1.0
+  Purpose: Enforce high selectivity AND membrane permeability.
+
+DIVERSITY FILTER
+----------------
+type = "IdenticalMurckoScaffold"
+bucket_size = 25
+minscore = 0.4
+Purpose: Avoid collapsing onto a single scaffold; reward chemical diversity.
+
+INCEPTION (WARM START)
+-----------------------
+File: reinvent4_configs/pgk2_seeds.smi
+Content: SMILES of known PGK2-selective binders from:
+  - data/ligands/smiles_binding.csv   (PGK2-labelled rows)
+  - data/denovo/denovo.csv            (high-confidence DEL hits)
+Purpose: Seed the inception memory so the agent does not start from scratch.
+To build: filter smiles_binding.csv for source=="PGK2" and export SMILES.
+
+SCORE TRANSFORM (SIGMOID)
+--------------------------
+Stage 1:
+  transform.type = "sigmoid"
+  transform.high = 0.9    (target normalized selectivity)
+  transform.low  = 0.6    (minimum normalized selectivity to reward)
+  transform.k    = 0.25
+
+Stage 2 (tighter):
+  transform.type = "sigmoid"
+  transform.high = 0.95
+  transform.low  = 0.7
+  transform.k    = 0.25
+
+In raw selectivity score (pre-normalization):
+  0.6 normalized ≈ Δ = +0.20  (PGK2 20% more likely than PGK1)
+  0.9 normalized ≈ Δ = +0.80  (strong PGK2 priority)
+
+RUNNING
+-------
+1.  conda activate reinvent4
+2.  set PYTHONPATH=C:\Users\aelsamma\Desktop\Projects\reinvent4_scoring
+3.  cd C:\Users\aelsamma\Desktop\Projects
+4.  reinvent -l reinvent4_outputs\pgk2_rl.log reinvent4_configs\pgk2_selective_rl.toml
+
+Monitor with TensorBoard (separate terminal):
+  tensorboard --logdir reinvent4_outputs\tb_pgk2
+
+OUTPUTS
+-------
+reinvent4_outputs/pgk2_stage1_summary*.csv  — all sampled SMILES + scores
+reinvent4_outputs/pgk2_stage2_summary*.csv
+reinvent4_outputs/pgk2_stage2.chkpt        — final agent model
+
+Post-process: Filter CSV for PGK2Selectivity_PGK2_selectivity > 0.7
+and feed top-ranked SMILES back into screen_enamine.py for full surrogate
+re-scoring as cross-check.
+
+FEEDBACK LOOP (ITERATIVE DESIGN)
+---------------------------------
+Round 1: RL generates candidates → filter → screen_enamine.py re-scores
+Round 2: Best round-1 hits → add to inception memory → re-run RL with
+          tighter transform and higher minscore
+Round 3+: Repeat; optionally retrain surrogate with new DEL/assay data
+
+VALIDATION
+----------
+Before running RL, validate the plugin on known compounds:
+  reinvent -l reinvent4_outputs\scoring_test.log reinvent4_configs\pgk2_scoring_test.toml
+Expected: PGK2-selective DEL hits should score > 0.7
+          PGK1-selective / decoy SMILES should score < 0.4
+
+KNOWN LIMITATIONS
+-----------------
+1. Uni-Mol embedding is slow (~0.5 s/mol CPU); total throughput ≈ 200 mol/min.
+   Batch size 100 per RL step means ~30 s/step → ~250 min for 500 steps.
+   Use GPU if available; otherwise budget ~4h per run.
+
+2. Surrogate model is trained only on PGK1/PGK2. It has no explicit lipophilicity,
+   ADMET, or synthesizability awareness. Rely on QED + TPSA transforms for that.
+
+3. Uni-Mol conformer generation can fail for exotic SMILES. These are returned
+   as NaN (REINVENT4 treats NaN as failure = score 0). Monitor failure rate in logs.
+
+4. The surrogate may be overfit to the chemical space of DEL binders.
+   Include structural diversity filter and inspect scaffold distributions.
+
+NEXT STEPS AFTER GENERATION
+----------------------------
+1. Cluster top-scoring generated SMILES by Murcko scaffold.
+2. Pick 1-2 representatives per cluster.
+3. Run docking (AutoDock-Vina or Glide) as an orthogonal check.
+4. If experimental capacity available: order 10-20 top hits for miniaturized PGK1/PGK2 assay.
+5. Hits that confirm selectivity experimentally → add to smiles_binding.csv → retrain surrogate.

@@ -1,0 +1,48 @@
+# Configuration for stage2_train.py
+# Stage 2: LOO evaluation — v1
+
+# Model Version
+# -------------
+version: "v1"
+
+# Input Paths
+# -----------
+input:
+  checkpoint_stage1: "models/v1/stage1_best.pt"
+  ligand_csv: "data/ligands/smiles_binding_pdb_decoy.csv"
+  ligand_features: "data/ligand_features_cache/ligand_features_unimol.pkl"
+  pocket_embeddings: "data/pocket_embeddings_cache/pocket_embeddings_unimol_cutoff8A.pkl"
+
+# Output Paths
+# ------------
+output:
+  loo_dir: "models/v1/loo"
+  results_dir: "models/v1/results"
+  fold_checkpoint_name: "fold_{fold}_best.pt"
+  fold_predictions_holdout: "fold_{fold}_predictions_holdout.csv"
+  fold_predictions_non_holdout: "fold_{fold}_predictions_non_holdout.csv"
+  fold_metrics: "fold_{fold}_metrics.json"
+  loo_predictions: "stage_2_loo_predictions.csv"
+  loo_metrics: "stage_2_loo_metrics.json"
+  loo_confusion_plot: "stage_2_loo_confusion_matrices.png"
+
+# Training Hyperparameters
+# -------------------------
+training:
+  stage: "selectivity"
+  evaluation_strategy: "loo"
+  epochs: 100
+  batch_size: 16
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-4
+  seed: 42
+  device: "auto"
+
+# Evaluation
+# ----------
+evaluation:
+  save_fold_checkpoints: true
+  evaluate_holdout: true
+  evaluate_non_holdout: true
+  per_source_confusion: true
+  verbose: true

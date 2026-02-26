@@ -1,0 +1,138 @@
+PGK1 / PGK2 SELECTIVITY — FINAL MODEL RECORD (SINGLE MODEL)
+===========================================================
+
+THIS IS THE FINAL MODEL. NO STAGES. NO ENSEMBLES. NO LOO.
+If you see references to Stage 1A / 1B / Stage 2 in the repo, treat them as legacy.
+
+GOAL
+----
+Predict PGK1/PGK2 selectivity by asking two binding questions:
+  1) Does this ligand bind PGK1?
+  2) Does this ligand bind PGK2?
+Selectivity = p_bind(PGK2) − p_bind(PGK1)
+
+FINAL MODEL (CURRENT BEST)
+--------------------------
+Checkpoint: models/v1/stage1_best.pt
+Model: SelectivityModel (FiLM-conditioned binding classifier)
+Inference: Run twice with PGK1_mean and PGK2_mean pockets
+
+DATA (CURRENT SOURCE OF TRUTH)
+------------------------------
+Ligands: data/ligands/smiles_binding.csv
+  - PDB ligands with known targets (PGK1 / PGK2)
+  - DEL hits (PGK2-selective binders)
+  - DECOY non-binders (negatives for both pockets)
+
+Pockets (cached embeddings):
+  - data/pocket_embeddings_cache/pocket_embeddings_unimol_cutoff8A.pkl
+  - PGK1_mean: mean of PGK1 pocket set
+  - PGK2_mean: mean of PGK2 pocket set
+
+ARCHITECTURE (WHAT MATTERS)
+---------------------------
+Frozen encoders:
+  - Uni-Mol ligand embeddings (512)
+  - Uni-Mol pocket embeddings (512)
+
+Learnable core:
+  - Ligand projector 512 → 256
+  - Pocket projector 512 → 128
+  - FiLM conditioning (pocket → scale/shift on ligand)
+  - Classifier head 256 → 1 (sigmoid p_bind)
+
+Selectivity score:
+  score = p_bind(ligand, PGK2_mean) − p_bind(ligand, PGK1_mean)
+
+TRAINING (ONLY THE FINAL PATH)
+------------------------------
+Script: stage1_train.py
+Config: config_stage1_v1.yaml
+Best model selection: PDB AUC computed on all PDB examples each epoch
+Checkpoint output: models/v1/stage1_best.pt
+
+DATA SPLIT + VALIDATION (WHAT ACTUALLY WORKED)
+----------------------------------------------
+Training set:
+  - PDB ligands are INCLUDED in training
+  - DECOY non-binders are INCLUDED in training
+Validation set:
+  - DECOY-only validation (no PDB in val split)
+Model selection:
+  - Best checkpoint chosen by PDB AUC computed on ALL PDB examples each epoch
+    (PDB AUC uses the full PDB set, not just val)
+
+METRIC LEARNING (FINAL SETTINGS)
+--------------------------------
+Metric head: enabled
+Branch: pre_film (ligand-only embedding) for stable reproduction
+Best hyperparameters:
+  - margin: 0.1 to 0.3 (small margin works best)
+  - weight (alpha): 0.5 (medium strength)
+Config keys:
+  - metric_learning.enabled: true
+  - metric_learning.branch: "pre_film" or "post_film"
+  - metric_learning.margin: 0.1 to 0.3
+  - metric_learning.weight: 0.5
+Current config values:
+  - config_stage1.yaml:
+      metric_learning.branch: "pre_film"
+      metric_learning.margin: 0.3
+      metric_learning.weight: 0.5
+  - config_stage1_v1.yaml:
+      metric_learning.branch: "post_film"
+      metric_learning.margin: 0.1
+      metric_learning.weight: 0.5
+Notes:
+  - Metric loss is a regularizer; binding classification remains primary
+  - If classification suffers, reduce weight to 0.3
+
+SCREENING (ONLY THE FINAL PATH)
+-------------------------------
+Script: screen_enamine.py
+Configs in active use:
+  - config_screen_enamine_v1.yaml
+  - config_screen_denovo_v1.yaml
+  - config_diversity_screen.yaml
+
+Outputs:
+  - Full screening results (CSV)
+  - Top PGK2-selective list
+  - Top PGK1-selective list
+
+LEGACY WARNING (READ THIS)
+---------------------------
+The repo still contains old pipelines, old configs, and experimental variants.
+They are NOT the model. They will confuse future work if left unchecked.
+Do not mix legacy outputs with current results.
+
+NEXT CLEANUP PLAN (DO THIS WHEN READY)
+--------------------------------------
+1) Delete unused stages/scripts:
+   - stage2_train.py
+   - stage1_train.py branches related to multi-stage / LOO (if still present)
+   - any screen scripts tied to Stage 2 ensemble
+
+2) Archive old configs (do NOT delete without backing up):
+   - move legacy configs to old/configs/legacy_YYYYMMDD/
+   - keep only: config_stage1_v1.yaml, config_screen_*_v1.yaml, config_diversity_screen.yaml
+
+3) Archive old models/results:
+   - move models/v0/, models/old/, models/v0-3stage/ to old/models_legacy/
+   - keep only models/v1/stage1_best.pt and its history
+
+4) Prune data caches not used by current pipeline:
+   - keep ligand_features_cache and pocket_embeddings_cache that match current configs
+   - delete caches tied to legacy experiments
+
+5) Update README + DNA.txt after cleanup:
+   - state the single model path
+   - list only the active configs and scripts
+   - verify no legacy references remain
+
+REMINDER
+--------
+If you are unsure whether a file is legacy or current, stop and check:
+  - Is it referenced by config_stage1_v1.yaml or any *v1* screening config?
+  - Is the checkpoint path models/v1/stage1_best.pt?
+If not, it is legacy.

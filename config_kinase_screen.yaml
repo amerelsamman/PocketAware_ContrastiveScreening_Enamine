@@ -1,0 +1,64 @@
+# Configuration for screen_enamine.py
+# Screen Enamine kinase library for PGK1/PGK2 selectivity
+
+# Input
+# -----
+input:
+  # Path to Enamine CSV file
+  enamine_csv: "data/enamine/enamine_kinase.csv"
+  
+  # Column name containing SMILES
+  smiles_column: "smiles"
+  
+  # Maximum number of compounds to screen (null = all)
+  max_compounds: null
+
+# Embeddings
+# ----------
+embeddings:
+  # Path to cache file for Enamine embeddings
+  cache_path: "data/ligand_features_cache/enamine_kinase_embeddings.pkl"
+  
+  # Use cached embeddings if available
+  use_cache: true
+  
+  # Batch size for embedding computation
+  batch_size: 32
+
+# Pockets
+# -------
+pockets:
+  # Path to pocket embeddings file
+  pocket_embeddings_path: "data/pocket_embeddings_cache/pocket_embeddings_unimol_cutoff8A.pkl"
+
+# Model
+# -----
+model:
+  # Path to trained Stage 1 checkpoint (single-stage binding model)
+  checkpoint_path: "models/v1/stage1_best.pt"
+  
+  # Use Stage 2 LOO ensemble for confidence estimation
+  use_stage2_ensemble: false
+  
+  # Directory containing Stage 2 LOO fold checkpoints
+  stage2_loo_dir: "models/v1/loo"
+
+# Inference
+# ---------
+inference:
+  # Batch size for forward pass (can be larger than embedding batch)
+  batch_size: 256
+
+# Output
+# ------
+output:
+  # Directory to save screening results
+  output_dir: "data/enamine/screening_v1/"
+  
+  # Filenames for output files
+  full_results_filename: "enamine_kinase_screening_results.csv"
+  pgk2_selective_filename: "enamine_top_pgk2_selective.csv"
+  pgk1_selective_filename: "enamine_top_pgk1_selective.csv"
+  
+  # Number of top compounds to save separately
+  top_n: 1000

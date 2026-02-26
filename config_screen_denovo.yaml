@@ -1,0 +1,42 @@
+# Configuration for screen_enamine.py — De Novo library screening
+# Screens data/denovo/embs.metadata.csv for PGK1/PGK2 selectivity
+
+# Input
+# -----
+input:
+  enamine_csv: "data/denovo/embs.metadata.csv"
+  smiles_column: "smiles"
+  max_compounds: null
+
+# Embeddings
+# ----------
+embeddings:
+  cache_path: "data/denovo/screen/denovo_unimol_embeddings.pkl"
+  use_cache: true
+  batch_size: 32
+
+# Pockets
+# -------
+pockets:
+  pocket_embeddings_path: "data/pocket_embeddings_cache/pocket_embeddings_unimol_cutoff8A.pkl"
+
+# Model
+# -----
+model:
+  checkpoint_path: "models/v0/stage1_best.pt"
+  use_stage2_ensemble: false
+  stage2_loo_dir: "models/v0/loo"
+
+# Inference
+# ---------
+inference:
+  batch_size: 256
+
+# Output
+# ------
+output:
+  output_dir: "data/denovo/screen"
+  full_results_filename: "denovo_screening_results.csv"
+  pgk2_selective_filename: "denovo_top_pgk2_selective.csv"
+  pgk1_selective_filename: "denovo_top_pgk1_selective.csv"
+  preserve_order: true

@@ -1,0 +1,38 @@
+# Data (large files / proprietary)
+data/
+models/
+
+# Reinvent4 submodule / outputs
+reinvent4/
+reinvent4_configs/
+reinvent4_outputs/
+reinvent4_scoring/
+
+# Other excluded dirs
+old/
+unimol_tutorial/
+logs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Environment / IDE
+.env
+.venv/
+*.egg
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
