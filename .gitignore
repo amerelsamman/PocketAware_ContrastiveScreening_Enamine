@@ -1,6 +1,20 @@
-# Data (large files / proprietary)
-data/
-models/
+# Data — exclude bulk screening/library data, keep inference assets
+data/37K/
+data/denovo/
+data/enamine/
+data/enamine_diversity/
+data/full_PL_complexes/
+data/old/
+data/ligands_features_cache/
+# data/pocket_embeddings_cache/  — included (needed for inference)
+# data/ligands/                  — included (PDB reference ligands)
+# data/ligand_features_cache/    — included minus large diversity PKLs
+data/ligand_features_cache/diversity_*.pkl
+
+# Models — exclude old/dev checkpoints, keep v2
+models/old/
+models/v0/
+models/v1/
 
 # Reinvent4 submodule / outputs
 reinvent4/

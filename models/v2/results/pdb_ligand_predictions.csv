@@ -1,0 +1,31 @@
+mol_id,ligand_id,description,smiles,true_target,pocket,true_label,p_bind,pred_label,correct
+0,L1,quinazoline (cpd21),CN(CCCc1[nH]nc(N)c1C#N)c1nc(-c2cccnc2)nc2ccccc12,PGK1,PGK1,1,0.9885,1,True
+0,L1,quinazoline (cpd21),CN(CCCc1[nH]nc(N)c1C#N)c1nc(-c2cccnc2)nc2ccccc12,PGK1,PGK2,0,0.1894,0,True
+1,L2,quinazoline (cpd47),CNC(=O)C[C@H](Nc1nc(-c2cncc(OC)c2)nc2cc(OC)c(OC)cc12)c1ccc(C#N)cc1,PGK1,PGK1,1,0.9972,1,True
+1,L2,quinazoline (cpd47),CNC(=O)C[C@H](Nc1nc(-c2cncc(OC)c2)nc2cc(OC)c(OC)cc12)c1ccc(C#N)cc1,PGK1,PGK2,0,0.5228,1,False
+2,L3,quinazoline (cpd45),CNC(=O)C[C@@H](Nc1nc(-c2ccc(OC)c(S(=O)(=O)N3CCOCC3)c2)nc2cc(OC)c(OC)cc12)c1ccc(C#N)cc1,PGK1,PGK1,1,0.9859,1,True
+2,L3,quinazoline (cpd45),CNC(=O)C[C@@H](Nc1nc(-c2ccc(OC)c(S(=O)(=O)N3CCOCC3)c2)nc2cc(OC)c(OC)cc12)c1ccc(C#N)cc1,PGK1,PGK2,0,0.4139,0,True
+4,L5,non-quinazoline,CC1(C)Cc2c(c(N3CCCC3)nc3sc(C(=O)NN)c(N)c23)CO1,PGK1,PGK1,1,0.99,1,True
+4,L5,non-quinazoline,CC1(C)Cc2c(c(N3CCCC3)nc3sc(C(=O)NN)c(N)c23)CO1,PGK1,PGK2,0,0.3456,0,True
+6,L7,non-quinazoline,COc1ccc(/C=N/n2cnc3ccccc32)cc1,PGK1,PGK1,1,0.9918,1,True
+6,L7,non-quinazoline,COc1ccc(/C=N/n2cnc3ccccc32)cc1,PGK1,PGK2,0,0.503,1,False
+7,L8,non-quinazoline,c1cncc(-c2nc(NCc3ccc4[nH]ccc4c3)n[nH]2)c1,PGK1,PGK1,1,0.9901,1,True
+7,L8,non-quinazoline,c1cncc(-c2nc(NCc3ccc4[nH]ccc4c3)n[nH]2)c1,PGK1,PGK2,0,0.2018,0,True
+10,L11,non-quinazoline,CC(C)c1cc(-c2nn3c(-c4cnccn4)nnc3s2)[nH]n1,PGK1,PGK1,1,0.9899,1,True
+10,L11,non-quinazoline,CC(C)c1cc(-c2nn3c(-c4cnccn4)nnc3s2)[nH]n1,PGK1,PGK2,0,0.713,1,False
+12,L13,non-quinazoline,CC(C)[C@H]1CC[C@H](C(=O)N[C@@H](Cc2ccccc2)C(=O)Nc2nnc[nH]2)CC1,PGK1,PGK1,1,0.9876,1,True
+12,L13,non-quinazoline,CC(C)[C@H]1CC[C@H](C(=O)N[C@@H](Cc2ccccc2)C(=O)Nc2nnc[nH]2)CC1,PGK1,PGK2,0,0.8671,1,False
+13,L14,quinazoline,Cc1nc2cc(-c3ccc(Br)cc3)nn2c(C)c1CCC(=O)[O-],PGK1,PGK1,1,0.9917,1,True
+13,L14,quinazoline,Cc1nc2cc(-c3ccc(Br)cc3)nn2c(C)c1CCC(=O)[O-],PGK1,PGK2,0,0.8101,1,False
+14,L15,quinazoline,COc1cc2nc(N3CCN(C(=O)C4CCCO4)CC3)nc(N)c2cc1OC,PGK1,PGK1,1,0.9906,1,True
+14,L15,quinazoline,COc1cc2nc(N3CCN(C(=O)C4CCCO4)CC3)nc(N)c2cc1OC,PGK1,PGK2,0,0.3702,0,True
+3,L4,non-quinazoline,NC(=O)c1sc2nc(-c3cccnc3)ccc2c1N,PGK2,PGK1,0,0.9542,1,False
+3,L4,non-quinazoline,NC(=O)c1sc2nc(-c3cccnc3)ccc2c1N,PGK2,PGK2,1,0.9902,1,True
+5,L6,non-quinazoline,COc1ccc(Nc2ncnc3sc(C)cc23)c(OC)c1,PGK2,PGK1,0,0.6701,1,False
+5,L6,non-quinazoline,COc1ccc(Nc2ncnc3sc(C)cc23)c(OC)c1,PGK2,PGK2,1,0.9866,1,True
+8,L9,non-quinazoline,Cn1ccc2cc(C(=O)Nc3ccc(-n4cc(Br)cn4)nc3)ccc21,PGK2,PGK1,0,0.9724,1,False
+8,L9,non-quinazoline,Cn1ccc2cc(C(=O)Nc3ccc(-n4cc(Br)cn4)nc3)ccc21,PGK2,PGK2,1,0.9939,1,True
+9,L10,non-quinazoline,Clc1cn[nH]c1-c1nn2c(-c3ccsc3)nnc2s1,PGK2,PGK1,0,0.9478,1,False
+9,L10,non-quinazoline,Clc1cn[nH]c1-c1nn2c(-c3ccsc3)nnc2s1,PGK2,PGK2,1,0.9924,1,True
+11,L12,non-quinazoline,CC(C)[C@H]1CC[C@H](C(=O)N[C@@H](Cc2ccccc2)C(=O)Nc2ncc[nH]2)CC1,PGK2,PGK1,0,0.9358,1,False
+11,L12,non-quinazoline,CC(C)[C@H]1CC[C@H](C(=O)N[C@@H](Cc2ccccc2)C(=O)Nc2ncc[nH]2)CC1,PGK2,PGK2,1,0.9725,1,True

@@ -1,0 +1,30 @@
+{
+  "checkpoint_path": "models\\v2\\stage1_best.pt",
+  "split": "Val",
+  "num_samples": 320,
+  "num_positives": 0,
+  "num_negatives": 320,
+  "auc": null,
+  "accuracy": 0.978125,
+  "sensitivity": 0.0,
+  "specificity": 0.978125,
+  "true_positives": 0,
+  "true_negatives": 313,
+  "false_positives": 7,
+  "false_negatives": 0,
+  "per_source": {
+    "DECOY": {
+      "num_samples": 320,
+      "num_positives": 0,
+      "num_negatives": 320,
+      "auc": null,
+      "accuracy": 0.978125,
+      "confusion_matrix": {
+        "true_negatives": 313,
+        "false_positives": 7,
+        "false_negatives": 0,
+        "true_positives": 0
+      }
+    }
+  }
+}

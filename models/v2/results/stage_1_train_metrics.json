@@ -1,0 +1,43 @@
+{
+  "checkpoint_path": "models\\v2\\stage1_best.pt",
+  "split": "Train",
+  "num_samples": 1310,
+  "num_positives": 15,
+  "num_negatives": 1295,
+  "auc": 1.0,
+  "accuracy": 0.9809160305343512,
+  "sensitivity": 1.0,
+  "specificity": 0.9806949806949807,
+  "true_positives": 15,
+  "true_negatives": 1270,
+  "false_positives": 25,
+  "false_negatives": 0,
+  "per_source": {
+    "DECOY": {
+      "num_samples": 1280,
+      "num_positives": 0,
+      "num_negatives": 1280,
+      "auc": null,
+      "accuracy": 0.98828125,
+      "confusion_matrix": {
+        "true_negatives": 1265,
+        "false_positives": 15,
+        "false_negatives": 0,
+        "true_positives": 0
+      }
+    },
+    "PDB": {
+      "num_samples": 30,
+      "num_positives": 15,
+      "num_negatives": 15,
+      "auc": 1.0,
+      "accuracy": 0.6666666666666666,
+      "confusion_matrix": {
+        "true_negatives": 5,
+        "false_positives": 10,
+        "false_negatives": 0,
+        "true_positives": 15
+      }
+    }
+  }
+}
