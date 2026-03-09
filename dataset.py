@@ -46,9 +46,25 @@ class SelectivityDataset(Dataset):
         'combined' = concatenate both stages
     """
     
-    def __init__(self, stage: str = 'binding', csv_path: str = None):
+    def __init__(self, stage: str = 'binding', csv_path: str = None,
+                 ligand_feat_path: str = None,
+                 multiconf_dict: dict = None, conformer_method: str = None,
+                 expand_confs: bool = False):
         """
         Load pockets, ligand features, and ligand metadata.
+
+        Parameters
+        ----------
+        stage : str
+            'binding', 'selectivity' or 'combined'.
+        csv_path : str or Path
+            Path(s) to metadata CSV(s).
+        multiconf_dict : dict, optional
+            If provided and ``conformer_method`` is not None, the dataset will
+            collapse the multi-conformer embeddings using the given method and
+            use those vectors instead of the raw ``ligand_features`` file.
+        conformer_method : str or None
+            Either 'mean' or 'max'. Only used if ``multiconf_dict`` supplied.
         """
         self.stage = stage
         assert stage in ('binding', 'selectivity', 'combined'), \
@@ -74,10 +90,35 @@ class SelectivityDataset(Dataset):
         print(f"Loaded {len(self.pocket_names)} pockets")
         print(f"  PGK1_mean: {self.pgk1_mean.shape}, PGK2_mean: {self.pgk2_mean.shape}")
         
-        # Load ligand features
-        with open('data/ligand_features_cache/ligand_features_unimol.pkl', 'rb') as f:
-            self.ligand_features = pickle.load(f)  # {smiles: (512,)}
-        
+        # Load ligand features from disk
+        if ligand_feat_path is not None:
+            lf_path = Path(ligand_feat_path)
+        else:
+            lf_path = Path('data/ligand_features_cache/ligand_features_unimol.pkl')
+        with open(lf_path, 'rb') as f:
+            raw_feats = pickle.load(f)
+
+        # decide how to handle conformers
+        self.multiconf_dict = multiconf_dict
+        self.conformer_method = conformer_method
+        self.expand_confs = expand_confs
+
+        if multiconf_dict is not None and conformer_method and not expand_confs:
+            # collapse now, as before
+            collapsed = {}
+            for smi, emb_list in multiconf_dict.items():
+                if emb_list is None or len(emb_list) == 0:
+                    continue
+                arr = np.vstack(emb_list)
+                if conformer_method == 'max':
+                    collapsed[smi] = arr.max(axis=0)
+                else:
+                    collapsed[smi] = arr.mean(axis=0)
+            self.ligand_features = collapsed
+            print(f"Collapsed {len(collapsed)} multi-conf ligands ({conformer_method})")
+        else:
+            self.ligand_features = raw_feats
+
         print(f"Loaded {len(self.ligand_features)} ligand embeddings")
         
         # Load ligand metadata
@@ -130,56 +171,25 @@ class SelectivityDataset(Dataset):
             source = row.get('source', 'unknown')
             target = row.get('target', None)
             
-            # Skip if no SMILES or feature
-            if pd.isna(smiles) or smiles not in self.ligand_features:
+            # Skip if no SMILES
+            if pd.isna(smiles):
                 continue
-            
-            ligand_feat = self.ligand_features[smiles]
-            
-            # ─── DEL hits (selectivity=1): PGK2-selective ───
-            if source == 'DEL' and selectivity == 1:
-                # Binds PGK2
-                self.examples.append({
-                    'smiles': smiles,
-                    'ligand_feat': ligand_feat.copy(),
-                    'pocket_emb': self.pgk2_mean.copy(),
-                    'label': 1,
-                    'stage': 'binding',
-                    'source': 'DEL',
-                })
-                # Doesn't bind PGK1 (selective)
-                self.examples.append({
-                    'smiles': smiles,
-                    'ligand_feat': ligand_feat.copy(),
-                    'pocket_emb': self.pgk1_mean.copy(),
-                    'label': 0,
-                    'stage': 'binding',
-                    'source': 'DEL',
-                })
-            
-            # ─── Decoys (selectivity=0): non-binders ───
-            elif (source == 'DECOY') or (source == 'DEL' and selectivity == 0):
-                # Don't bind either
-                self.examples.append({
-                    'smiles': smiles,
-                    'ligand_feat': ligand_feat.copy(),
-                    'pocket_emb': self.pgk1_mean.copy(),
-                    'label': 0,
-                    'stage': 'binding',
-                    'source': 'DECOY',
-                })
-                self.examples.append({
-                    'smiles': smiles,
-                    'ligand_feat': ligand_feat.copy(),
-                    'pocket_emb': self.pgk2_mean.copy(),
-                    'label': 0,
-                    'stage': 'binding',
-                    'source': 'DECOY',
-                })
-            
-            # ─── PDB ligands (with known target) ───
-            elif source == 'PDB' and pd.notna(target):
-                if target == 'PGK2':
+
+            # determine embeddings list depending on expansion flag
+            if self.expand_confs and self.multiconf_dict is not None and smiles in self.multiconf_dict:
+                emb_list = self.multiconf_dict[smiles]
+                if emb_list is None:
+                    continue
+            else:
+                emb = self.ligand_features.get(smiles)
+                if emb is None:
+                    continue
+                emb_list = [emb]
+
+            # for each available embedding create examples (same label)
+            for ligand_feat in emb_list:
+                # ─── DEL hits (selectivity=1): PGK2-selective ───
+                if source == 'DEL' and selectivity == 1:
                     # Binds PGK2
                     self.examples.append({
                         'smiles': smiles,
@@ -187,40 +197,83 @@ class SelectivityDataset(Dataset):
                         'pocket_emb': self.pgk2_mean.copy(),
                         'label': 1,
                         'stage': 'binding',
-                        'source': 'PDB',
-                        'target': 'PGK2',
+                        'source': 'DEL',
                     })
-                    # Doesn't bind PGK1
+                    # Doesn't bind PGK1 (selective)
                     self.examples.append({
                         'smiles': smiles,
                         'ligand_feat': ligand_feat.copy(),
                         'pocket_emb': self.pgk1_mean.copy(),
                         'label': 0,
                         'stage': 'binding',
-                        'source': 'PDB',
-                        'target': 'PGK2',
+                        'source': 'DEL',
                     })
-                elif target == 'PGK1':
-                    # Binds PGK1
+
+                # ─── Decoys (selectivity=0): non-binders ───
+                elif (source == 'DECOY') or (source == 'DEL' and selectivity == 0):
+                    # Don't bind either
                     self.examples.append({
                         'smiles': smiles,
                         'ligand_feat': ligand_feat.copy(),
                         'pocket_emb': self.pgk1_mean.copy(),
-                        'label': 1,
+                        'label': 0,
                         'stage': 'binding',
-                        'source': 'PDB',
-                        'target': 'PGK1',
+                        'source': 'DECOY',
                     })
-                    # Doesn't bind PGK2
                     self.examples.append({
                         'smiles': smiles,
                         'ligand_feat': ligand_feat.copy(),
                         'pocket_emb': self.pgk2_mean.copy(),
                         'label': 0,
                         'stage': 'binding',
-                        'source': 'PDB',
-                        'target': 'PGK1',
+                        'source': 'DECOY',
                     })
+
+                # ─── PDB ligands (with known target) ───
+                elif source == 'PDB' and pd.notna(target):
+                    if target == 'PGK2':
+                        # Binds PGK2
+                        self.examples.append({
+                            'smiles': smiles,
+                            'ligand_feat': ligand_feat.copy(),
+                            'pocket_emb': self.pgk2_mean.copy(),
+                            'label': 1,
+                            'stage': 'binding',
+                            'source': 'PDB',
+                            'target': 'PGK2',
+                        })
+                        # Doesn't bind PGK1
+                        self.examples.append({
+                            'smiles': smiles,
+                            'ligand_feat': ligand_feat.copy(),
+                            'pocket_emb': self.pgk1_mean.copy(),
+                            'label': 0,
+                            'stage': 'binding',
+                            'source': 'PDB',
+                            'target': 'PGK2',
+                        })
+                    elif target == 'PGK1':
+                        # Binds PGK1
+                        self.examples.append({
+                            'smiles': smiles,
+                            'ligand_feat': ligand_feat.copy(),
+                            'pocket_emb': self.pgk1_mean.copy(),
+                            'label': 1,
+                            'stage': 'binding',
+                            'source': 'PDB',
+                            'target': 'PGK1',
+                        })
+                        # Doesn't bind PGK2
+                        self.examples.append({
+                            'smiles': smiles,
+                            'ligand_feat': ligand_feat.copy(),
+                            'pocket_emb': self.pgk2_mean.copy(),
+                            'label': 0,
+                            'stage': 'binding',
+                            'source': 'PDB',
+                            'target': 'PGK1',
+                        })
+            
         
         print(f"  → {len([e for e in self.examples if e['stage']=='binding'])} binding examples")
     

@@ -6,15 +6,21 @@ data/enamine_diversity/
 data/full_PL_complexes/
 data/old/
 data/ligands_features_cache/
+data/4M/
 # data/pocket_embeddings_cache/  — included (needed for inference)
 # data/ligands/                  — included (PDB reference ligands)
 # data/ligand_features_cache/    — included minus large diversity PKLs
 data/ligand_features_cache/diversity_*.pkl
+data/uniques/
+
+
 
 # Models — exclude old/dev checkpoints, keep v1
 models/old/
 models/v0/
 models/v2/
+models/v1_afterpdb/
+models/v2_*/
 
 # Reinvent4 submodule / outputs
 reinvent4/
@@ -24,12 +30,15 @@ reinvent4_scoring/
 reinvent4_stuff/
 
 configs/
+cc_outs/
 
 # Other excluded dirs
 old/
 clean_smiles.py
 check_checkpoint.py
+analyze_projections.ipynb
 eval_pdb.py
+architecture/
 
 # Python cache
 __pycache__/

@@ -65,7 +65,22 @@ Model selection:
 METRIC LEARNING (FINAL SETTINGS)
 --------------------------------
 Metric head: enabled
-Branch: pre_film (ligand-only embedding) for stable reproduction
+Branch: post_film (pocket-ligand embedding) for stable reproduction
+
+Three‑class contrastive/triplet loss (post-film):
+  * Operates on the full training batch (PDB binders + DECOY nonbinders).
+  * Examples grouped into three clusters:
+      - **PGK2_bind** : PGK2 pocket + PGK2‑selective binder  (label=1, target=PGK2)
+      - **PGK1_bind** : PGK1 pocket + PGK1‑selective binder  (label=1, target=PGK1)
+      - **nonbind**   : any pocket  + non‑binder (label=0; includes DECOYs and counter‑pockets).
+  * For each anchor in cluster C, the hardest positive is the farthest other
+    example in C and the hardest negative is the closest example outside C.
+  * Loss = max(0, d_pos − d_neg + margin), averaged over anchors.
+  * Requires PDB oversampling (`pdb_oversample_factor` ≥ 5) so that both bind
+    classes appear in every batch.
+  * This pocket‑aware embedding encourages PGK1/PGK2 complexes to separate
+    from each other and from nonbinders.
+
 Best hyperparameters:
   - margin: 0.1 to 0.3 (small margin works best)
   - weight (alpha): 0.5 (medium strength)

@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import argparse
 import yaml
+import pickle
 
 import numpy as np
 import torch
@@ -354,8 +355,59 @@ def train_epoch(model, dataloader, optimizer, criterion, device, class_weights=N
     return avg_loss, auc, acc
 
 
-def validate(model, dataloader, criterion, device, class_weights=None, return_sources=False):
-    """Validate on a dataset."""
+def _aggregate_batch(model, pocket_emb, smiles_list, multi_conf_dict, method, device):
+    """Compute aggregated probabilities for a batch given multiple embeddings.
+
+    Parameters
+    ----------
+    model : nn.Module
+    pocket_emb : torch.Tensor of shape (B, D)
+    smiles_list : list of str
+    multi_conf_dict : dict mapping smiles -> list of np.ndarray embedding
+    method : str or None ('mean' or 'max')
+    device : torch.device
+
+    Returns
+    -------
+    torch.Tensor of shape (B,) with aggregated probabilities
+    """
+    agg_probs = []
+    for i, smi in enumerate(smiles_list):
+        if method and multi_conf_dict and smi in multi_conf_dict:
+            emb_list = multi_conf_dict[smi]
+            # allow the odd case where value is a single array instead of list
+            if isinstance(emb_list, np.ndarray):
+                emb_list = [emb_list]
+            if emb_list is None or len(emb_list) == 0:
+                agg_probs.append(None)
+                continue
+            # compute probs for each embedding
+            conf_tensors = torch.tensor(np.vstack(emb_list), dtype=torch.float32, device=device)
+            # expand pocket to match
+            pk = pocket_emb[i].unsqueeze(0).repeat(len(emb_list), 1)
+            with torch.no_grad():
+                _, p = model(conf_tensors, pk)
+            p = p.cpu().numpy().flatten()
+            if method == 'max':
+                agg_probs.append(p.max())
+            else:
+                agg_probs.append(p.mean())
+        else:
+            agg_probs.append(None)
+    # return tensor, with None replaced by nan
+    out = np.array([np.nan if v is None else v for v in agg_probs], dtype=np.float32)
+    return torch.tensor(out, dtype=torch.float32, device=device)
+
+
+def validate(model, dataloader, criterion, device, class_weights=None, return_sources=False,
+             multi_conf_dict=None, conformer_method=None):
+    """Validate on a dataset.
++    If ``multi_conf_dict`` is provided and ``conformer_method`` is not None,
++    additional forward passes are made per conformer and the resulting
++    probabilities collapsed (mean or max) for metric computation.  The
++    returned prediction list will contain these aggregated values when
++    available; otherwise the normal single-vector output is used.
+    """
     model.eval()
     total_loss = 0.0
     all_preds = []
@@ -370,6 +422,17 @@ def validate(model, dataloader, criterion, device, class_weights=None, return_so
 
             logits, probs = model(ligand_feat, pocket_emb)
             loss = criterion(logits, labels.unsqueeze(1).float())
+
+            # aggregate if requested
+            if conformer_method and multi_conf_dict is not None:
+                smiles = batch.get('smiles', [])
+                agg = _aggregate_batch(model, pocket_emb, smiles,
+                                       multi_conf_dict, conformer_method, device)
+                # replace only those entries where agg is not nan
+                mask = ~torch.isnan(agg)
+                if mask.any():
+                    probs = probs.clone()
+                    probs[mask] = agg[mask].unsqueeze(1)
 
             total_loss += loss.item()
             all_preds.extend(probs.cpu().numpy().flatten())
@@ -412,7 +475,11 @@ def stratified_split(dataset, test_size, seed):
     return Subset(dataset, train_idx), Subset(dataset, val_idx), train_idx
 
 
-def train_stage1(model, train_dataset, val_dataset, config, device, class_weights=None, use_stratified_sampler=False, use_weighted_sampler=False, pdb_oversample_factor=1.0, validation_metric_config=None, metric_weight=0.0, metric_margin=0.3):
+def train_stage1(model, train_dataset, val_dataset, config, device, class_weights=None,
+                 use_stratified_sampler=False, use_weighted_sampler=False,
+                 pdb_oversample_factor=1.0, validation_metric_config=None,
+                 metric_weight=0.0, metric_margin=0.3,
+                 multi_conf_dict=None, conformer_method=None):
     """Stage 1: Binding classification."""
     print("\n" + "=" * 60)
     print("STAGE 1: Binding Classification")
@@ -507,12 +574,16 @@ def train_stage1(model, train_dataset, val_dataset, config, device, class_weight
         )
 
         val_loss, val_auc, val_acc, val_preds, val_labels, val_sources = validate(
-            model, val_loader, criterion, device, return_sources=True
+            model, val_loader, criterion, device, return_sources=True,
+            multi_conf_dict=multi_conf_dict,
+            conformer_method=conformer_method,
         )
         
         # Get predictions on training set to compute PDB metrics across ALL PDB samples (train + val)
         train_loss_eval, _, _, train_preds, train_labels, train_sources = validate(
-            model, train_loader, criterion, device, return_sources=True
+            model, train_loader, criterion, device, return_sources=True,
+            multi_conf_dict=multi_conf_dict,
+            conformer_method=conformer_method,
         )
         
         # Combine train + val predictions for metrics computation
@@ -609,8 +680,16 @@ def train_stage1(model, train_dataset, val_dataset, config, device, class_weight
     return best_val_auc, history, best_epoch
 
 
-def evaluate_split(model, dataset, stage_name, split_name, checkpoint_path, results_dir, device):
-    """Evaluate a model on a dataset split and save results."""
+def evaluate_split(model, dataset, stage_name, split_name, checkpoint_path, results_dir, device,
+                   multi_conf_dict=None, conformer_method=None):
+    """Evaluate a model on a dataset split and save results.
+
+    Supports optional conformer aggregation in exactly the same way as
+    :func:`validate` (see its docstring).  ``multi_conf_dict`` is the
+    dictionary of per-smiles embeddings produced by
+    ``prepare_ligand_features.py --config`` when ``save_multiconf`` is
+    enabled.  ``conformer_method`` is either ``'mean'`` or ``'max'``.
+    """
     print(f"\nEvaluating {stage_name} ({split_name})...")
 
     checkpoint = torch.load(checkpoint_path)
@@ -631,6 +710,16 @@ def evaluate_split(model, dataset, stage_name, split_name, checkpoint_path, resu
             labels = batch['label'].to(device)
 
             logits, probs = model(ligand_feat, pocket_emb)
+
+            # optional conformer aggregation
+            if conformer_method and multi_conf_dict is not None:
+                smiles = batch.get('smiles', [])
+                agg = _aggregate_batch(model, pocket_emb, smiles,
+                                       multi_conf_dict, conformer_method, device)
+                mask = ~torch.isnan(agg)
+                if mask.any():
+                    probs = probs.clone()
+                    probs[mask] = agg[mask].unsqueeze(1)
 
             all_preds.extend((probs > 0.5).cpu().numpy().flatten())
             all_probs.extend(probs.cpu().numpy().flatten())
@@ -947,6 +1036,22 @@ def main():
     
     print(f"Loaded config from: {args.config}\n")
     
+    # Load optional conformer aggregation settings
+    conformer_method = config.get('evaluation', {}).get('conformer_aggregate', None)
+    multi_conf_dict = None
+    if conformer_method:
+        mf_path = config.get('input', {}).get('ligand_features_multiconf', None)
+        if mf_path is None:
+            lf = Path(config['input']['ligand_features'])
+            mf_path = lf.parent / (lf.stem + '_confs.pkl')
+        mf_path = Path(mf_path)
+        if mf_path.exists():
+            with open(mf_path, 'rb') as f:
+                multi_conf_dict = pickle.load(f)
+            print(f"Loaded multi-conformer features from {mf_path} (method={conformer_method})")
+        else:
+            print(f"WARNING: conformer aggregation requested ({conformer_method}) but file not found: {mf_path}")
+    
     # Extract paths and parameters
     version = config.get('version', 'v0')
     checkpoint_dir = Path(config['output']['checkpoint_dir']) / version
@@ -996,7 +1101,14 @@ def main():
         history_path_1a = checkpoint_dir / config['output'].get('history_name_stage1a', 'stage1a_best_history.json')
         
         print(f"\nLoading Stage 1 data ({config['training']['stage']})...")
-        full_dataset = SelectivityDataset(stage=config['training']['stage'], csv_path=config['input']['ligand_csv'])
+        full_dataset = SelectivityDataset(
+            stage=config['training']['stage'],
+            csv_path=config['input']['ligand_csv'],
+            ligand_feat_path=config['input'].get('ligand_features', None),
+            multiconf_dict=multi_conf_dict,
+            conformer_method=conformer_method,
+            expand_confs=config['training'].get('expand_conformers', False),
+        )
         
         # Filter to only DEL + DECOY
         stage1a_sources = three_stage_config.get('stage1a_sources', ['DEL', 'DECOY'])
@@ -1031,10 +1143,14 @@ def main():
         # Evaluate Stage 1A separately
         print(f"\n[STAGE 1A EVALUATION]")
         if config['evaluation']['save_train_results']:
-            evaluate_split(model, train_dataset_1a, 'Stage 1A', 'Train', str(checkpoint_path_1a), results_dir, device)
+            evaluate_split(model, train_dataset_1a, 'Stage 1A', 'Train', str(checkpoint_path_1a), results_dir, device,
+                           multi_conf_dict=multi_conf_dict,
+                           conformer_method=conformer_method)
         
         if config['evaluation']['save_val_results']:
-            evaluate_split(model, val_dataset_1a, 'Stage 1A', 'Val', str(checkpoint_path_1a), results_dir, device)
+            evaluate_split(model, val_dataset_1a, 'Stage 1A', 'Val', str(checkpoint_path_1a), results_dir, device,
+                           multi_conf_dict=multi_conf_dict,
+                           conformer_method=conformer_method)
         
         if config['evaluation']['per_source_confusion']:
             if config['evaluation']['save_train_results']:
@@ -1129,7 +1245,14 @@ def main():
         }
         
         print(f"\nLoading Stage 1 data ({config['training']['stage']})...")
-        full_dataset = SelectivityDataset(stage=config['training']['stage'], csv_path=config['input']['ligand_csv'])
+        full_dataset = SelectivityDataset(
+            stage=config['training']['stage'],
+            csv_path=config['input']['ligand_csv'],
+            ligand_feat_path=config['input'].get('ligand_features', None),
+            multiconf_dict=multi_conf_dict,
+            conformer_method=conformer_method,
+            expand_confs=config['training'].get('expand_conformers', False),
+        )
         
         # Keep ALL PDB examples in train — only split DECOY for val (monitoring overfitting)
         # Stage 2 LOO is the real PDB evaluation
@@ -1167,7 +1290,9 @@ def main():
                                                      use_weighted_sampler=use_weighted,
                                                      pdb_oversample_factor=pdb_oversample_factor,
                                                      metric_weight=metric_weight,
-                                                     metric_margin=metric_margin)
+                                                     metric_margin=metric_margin,
+                                                     multi_conf_dict=multi_conf_dict,
+                                                     conformer_method=conformer_method)
         
         final_checkpoint = str(checkpoint_path)
         model_for_eval = model
@@ -1176,9 +1301,13 @@ def main():
     if config['evaluation']['save_train_results']:
         # For three-stage, evaluate Stage 1B on training set (DECOY+PDB)
         if three_stage_enabled:
-            train_metrics = evaluate_split(model_for_eval, train_dataset_1b, 'Stage 1B', 'Train (DECOY+PDB)', final_checkpoint, results_dir, device)
+            train_metrics = evaluate_split(model_for_eval, train_dataset_1b, 'Stage 1B', 'Train (DECOY+PDB)', final_checkpoint, results_dir, device,
+                                           multi_conf_dict=multi_conf_dict,
+                                           conformer_method=conformer_method)
         else:
-            train_metrics = evaluate_split(model_for_eval, train_dataset, 'Stage 1', 'Train', final_checkpoint, results_dir, device)
+            train_metrics = evaluate_split(model_for_eval, train_dataset, 'Stage 1', 'Train', final_checkpoint, results_dir, device,
+                                           multi_conf_dict=multi_conf_dict,
+                                           conformer_method=conformer_method)
         
         if config['evaluation']['per_source_confusion']:
             confusion_plot = results_dir / ('stage_1b_train_confusion_matrices.png' if three_stage_enabled else 'stage_1_train_confusion_matrices.png')
@@ -1187,9 +1316,13 @@ def main():
     if config['evaluation']['save_val_results']:
         # For three-stage, evaluate Stage 1B on validation set (DECOY+PDB)
         if three_stage_enabled:
-            val_metrics = evaluate_split(model_for_eval, val_dataset_1b, 'Stage 1B', 'Val (DECOY+PDB)', final_checkpoint, results_dir, device)
+            val_metrics = evaluate_split(model_for_eval, val_dataset_1b, 'Stage 1B', 'Val (DECOY+PDB)', final_checkpoint, results_dir, device,
+                                           multi_conf_dict=multi_conf_dict,
+                                           conformer_method=conformer_method)
         else:
-            val_metrics = evaluate_split(model_for_eval, val_dataset, 'Stage 1', 'Val', final_checkpoint, results_dir, device)
+            val_metrics = evaluate_split(model_for_eval, val_dataset, 'Stage 1', 'Val', final_checkpoint, results_dir, device,
+                                           multi_conf_dict=multi_conf_dict,
+                                           conformer_method=conformer_method)
         
         if config['evaluation']['per_source_confusion']:
             confusion_plot = results_dir / ('stage_1b_val_confusion_matrices.png' if three_stage_enabled else 'stage_1_val_confusion_matrices.png')
@@ -1198,7 +1331,9 @@ def main():
     # External test set evaluation (for three-stage, test on external DEL after training)
     if three_stage_enabled:
         print(f"\n[EXTERNAL TEST] Evaluating Stage 1B on external DEL test set...")
-        test_metrics = evaluate_split(model_for_eval, test_dataset_1b, 'Stage 1B', 'Test (external DEL)', final_checkpoint, results_dir, device)
+        test_metrics = evaluate_split(model_for_eval, test_dataset_1b, 'Stage 1B', 'Test (external DEL)', final_checkpoint, results_dir, device,
+                                       multi_conf_dict=multi_conf_dict,
+                                       conformer_method=conformer_method)
         if config['evaluation']['per_source_confusion']:
             confusion_plot = results_dir / 'stage_1b_test_confusion_matrices.png'
             plot_per_source_confusion_matrices(test_metrics, 'Stage 1B', 'Test (external DEL)', confusion_plot)

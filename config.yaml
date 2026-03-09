@@ -3,16 +3,22 @@
 # Input
 # -----
 input:
-  enamine_csv: "data/enamine_diversity/combined_smiles.400000-500000.csv"
-  smiles_column: "smiles"
+  enamine_csv: "data/4M/4M.csv"
+  smiles_column: "SMILES"
   max_compounds: null
 
 # Embeddings
 # ----------
 embeddings:
-  cache_path: "data/ligand_features_cache/diversity_400000-500000_embeddings.pkl"
+  cache_path: "data/ligand_features_cache/4M.pkl"
   use_cache: true
-  batch_size: 32
+  use_chunked_cache: true   # write/read per-chunk cache files when chunking
+  n_chunks: null           # optional override for total chunks (can pass on CLI)
+  chunk_idx: null          # optional override for this chunk index (0-based)
+  batch_size: 32       # legacy (screen_enamine.py)
+  embed_batch_size: 256  # v2: GPU batch size for UniMol embedding
+  canonicalize: false    # v2: canonicalize SMILES keys (safe default=false to not break existing caches)
+  save_every: 50000      # v2: save cache every N new embeddings (resume support)
 
 # Pockets
 # -------
@@ -34,7 +40,7 @@ inference:
 # Output
 # ------
 output:
-  output_dir: "data/enamine_diversity/screen/v1_400000-500000/"
+  output_dir: "data/4M/screen/"
   full_results_filename: "diversity_screening_results.csv"
   pgk2_selective_filename: "diversity_top_pgk2_selective.csv"
   pgk1_selective_filename: "diversity_top_pgk1_selective.csv"

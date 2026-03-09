@@ -1,0 +1,11 @@
+2026-02-27 13:12:20 | unimol_tools\models\unimol.py | 167 | INFO | Uni-Mol Tools | Loading pretrained weights from C:\Users\aelsamma\AppData\Local\anaconda3\envs\unimol\lib\site-packages\unimol_tools\weights\mol_pre_no_h_220816.pt
+2026-02-27 13:12:24 | unimol_tools\tasks\trainer.py | 103 | INFO | Uni-Mol Tools | Using CPU.
+2026-02-27 13:12:25 | unimol_tools\tasks\trainer.py | 103 | INFO | Uni-Mol Tools | Using CPU.
+2026-02-27 13:12:25 | unimol_tools\tasks\trainer.py | 103 | INFO | Uni-Mol Tools | Using CPU.
+2026-02-27 13:12:26 | unimol_tools\tasks\trainer.py | 103 | INFO | Uni-Mol Tools | Using CPU.
+2026-02-27 13:12:26 | unimol_tools\tasks\trainer.py | 103 | INFO | Uni-Mol Tools | Using CPU.
+2026-02-27 13:12:26 | unimol_tools\tasks\trainer.py | 103 | INFO | Uni-Mol Tools | Using CPU.
+2026-02-27 13:12:27 | unimol_tools\tasks\trainer.py | 103 | INFO | Uni-Mol Tools | Using CPU.
+2026-02-27 13:12:27 | unimol_tools\tasks\trainer.py | 103 | INFO | Uni-Mol Tools | Using CPU.
+2026-02-27 13:12:28 | unimol_tools\tasks\trainer.py | 103 | INFO | Uni-Mol Tools | Using CPU.
+2026-02-27 13:12:28 | unimol_tools\tasks\trainer.py | 103 | INFO | Uni-Mol Tools | Using CPU.

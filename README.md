@@ -69,6 +69,13 @@ Control ligand featurization:
 - **Output:** Cache directory, filenames
 - **Uni-Mol:** data_type, remove_hs
 - **RDKit:** Conformer generation parameters
+- **Conformer:** number of conformations per SMILES, how to collapse
+them, and optional directory of experimentally known PDB poses.
+  The default pipeline generates a single ETKDG conformer and
+  averages the resulting embeddings.  When a `pdb_dir` and matching
+  entry in the `description` column of the ligand CSV are provided,
+  the file in the directory is used verbatim and no embedding is
+  generated.
 
 Example:
 ```yaml
@@ -94,6 +101,13 @@ Control Stage 1 training:
 - **Output:** Checkpoint directory, results directory, filenames
 - **Training:** epochs, batch_size, learning_rate, val_split, seed
 - **Evaluation:** Toggle train/val results, per-source confusion, plots
+  and (optionally) how to aggregate multiple-conformer predictions.
+  If you generated a multi-conformer feature cache via
+  `prepare_ligand_features` with `save_multiconf: true` you can choose
+  ``conformer_aggregate: mean`` or ``max`` to have the evaluation
+  scripts forward each conformer through the model and collapse the
+  output probabilities.  When ``null`` (default) the pre‑collapsed
+  embeddings are used.
 
 Example:
 ```yaml
@@ -176,6 +190,28 @@ Both stages track metrics per data source:
 ├── config_prepare_features.yaml    # Featurization config
 ├── config_stage1.yaml               # Stage 1 training config
 ├── config_stage2.yaml               # Stage 2 LOO config
+
+### Conformer handling
+
+The feature preparer can generate multiple 3‑D geometries per SMILES and
+optionally save both a collapsed cache and a raw per-conformer dictionary
+(`*_confs.pkl`).  Training supports two distinct workflows:
+
+* **Collapse before training** – set `conformer.collapse` in
+  `config_prepare_features.yaml`.  The resulting PKL contains one 512-vector
+  per ligand.
+* **Collapse during/after training** – leave `conformer.collapse: null` and
+  `save_multiconf: true` in the preparer config, then set
+  `evaluation.conformer_aggregate: "mean"` (or `"max"`) in the Stage 1
+  training config.  The dataset constructor will average the per‑conformer
+  vectors when the dataset is built, and validation‑time aggregation will
+  recompute the logging on every conformer for metrics and checkpointing.
+
+A third, less common option is to treat every conformer as its own training
+example.  Enable this behaviour by setting
+`training.expand_conformers: true` in the Stage 1 config – the dataset will
+expand each SMILES into one example per embedding (all sharing the same
+label).
 ├── prepare_ligand_features.py       # Pre-compute Uni-Mol embeddings
 ├── stage1_train.py                  # Stage 1 training script
 ├── stage2_train.py                  # Stage 2 LOO evaluation script
